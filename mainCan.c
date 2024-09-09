@@ -111,10 +111,19 @@ void read_and_forward_can_to_uart(int can_socket, int uart_fd) {
             continue;
         }
 
-        // Vérifier si l'ID CAN est celui attendu (ex. 0x002, 0x456, 0x789)
-        if (frame.can_id == 0x002 || frame.can_id == 0x456 || frame.can_id == 0x789) {
-            write(uart_fd, frame.data, frame.can_dlc);
-            printf("Message CAN ID 0x%x envoyé sur UART\n", frame.can_id);
+        // Filtrage: accepter les messages dont le 2ème octet est 0x1X
+           if ((frame.can_id & 0x0F0) == 0x010) {
+            // Ajouter le premier octet à la position avant-dernière dans les données du message UART
+            char modified_data[frame.can_dlc + 1];  // Un octet de plus pour insérer le premier octet
+
+            // Copie du premier octet au bon endroit
+            memcpy(modified_data, frame.data, frame.can_dlc - 1);
+            modified_data[frame.can_dlc - 1] = (char)((frame.can_id >> 24)+0x30); // Premier octet de l'ID (8 bits)
+            memcpy(modified_data + frame.can_dlc, frame.data + frame.can_dlc - 1, 1);  // Copier le dernier octet
+
+            // Envoi du message UART modifié
+            write(uart_fd, modified_data, frame.can_dlc + 1);
+            printf("Message CAN ID 0x%X envoyé sur UART\n", frame.can_id);
         }
     }
 }
